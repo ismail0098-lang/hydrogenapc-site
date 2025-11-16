@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Atomic Radial Probability • HydroGen+ (TR/EN)</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+:root{ --bg:#0b0f14; --fg:#e9eef5; --muted:#9fb3c8; --accent:#7aa2ff; --card:#121822; --border:#233047; }
+*{ box-sizing:border-box }
+body{ margin:0; background:var(--bg); color:var(--fg); font:16px/1.6 system-ui,Segoe UI,Roboto,Inter,-apple-system,"Apple Color Emoji","Segoe UI Emoji" }
+header{ padding:18px 16px; border-bottom:1px solid var(--border); background:linear-gradient(180deg,#0e141c 0,#0b0f14 100%) }
+h1{ margin:0 0 6px 0; font-size:20px }
+small{ color:var(--muted) }
+.container{ display:grid; grid-template-columns:320px 1fr; gap:16px; padding:16px }
+@media (max-width:900px){ .container{ grid-template-columns:1fr } }
+.card{ background:var(--card); border:1px solid var(--border); border-radius:14px; padding:14px }
+.controls h2{ margin:0 0 8px 0; font-size:16px }
+.row{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px }
+.row-3{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:8px }
+label{ display:block; font-size:13px; color:var(--muted); margin-bottom:4px }
+input,select,button{ width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:#0d1420; color:var(--fg) }
+button.primary{ background:var(--accent); color:#0b0f14; border:0; font-weight:600 }
+.toggle{ display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap }
+.toggle button{ flex:1 }
+.legend{ display:flex; gap:8px; flex-wrap:wrap; margin:8px 0 }
+.legend label{ display:flex; align-items:center; gap:6px; background:#0e1522; border:1px solid var(--border); padding:6px 10px; border-radius:999px; color:var(--muted); user-select:none }
+.footer-badges .badge{ display:inline-block; background:#12203a; color:#9fb3c8; border:1px solid var(--border); border-radius:999px; padding:4px 8px; font-size:12px; margin-right:6px }
+.grid2{ display:grid; grid-template-columns:1fr 1fr; gap:8px }
+hr{ border:0; border-top:1px solid var(--border); margin:10px 0 }
+.lang{ display:flex; gap:8px }
+.lang button{ padding:8px 10px; border-radius:10px; border:1px solid var(--border); background:#0d1420; color:var(--fg) }
+.lang button.active{ background:var(--accent); color:#0b0f14; border:0; font-weight:600 }
+.tabs{ display:flex; gap:8px; margin-top:8px }
+.tabs button{ padding:8px 10px; border-radius:10px; border:1px solid var(--border); background:#0d1420; color:var(--fg) }
+.tabs button.active{ background:var(--accent); color:#0b0f14; border:0; font-weight:600 }
+.note{ font-size:13px; color:var(--muted) }
+.kicker{ font-size:13px; color:var(--muted); margin-bottom:6px }
+.badge{ display:inline-block; background:#12203a; color:#9fb3c8; border:1px solid var(--border); border-radius:999px; padding:4px 8px; font-size:12px; margin-right:6px }
+</style>
+</head>
+<body>
+<header>
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+    <div>
+      <h1 id="hdrTitle">Atomic Radial Probability Visualizer</h1>
+      <small id="hdrSubtitle">Mode 1: Hydrogen-like (exact). Mode 2: Multi-electron (Slater+δ, approx.). Mode 3: He (2e) variational total distribution.</small>
+    </div>
+    <div class="lang" aria-label="Language">
+      <button type="button" id="btnTR">TR</button>
+      <button type="button" id="btnEN" class="active">EN</button>
+    </div>
+  </div>
+</header>
+
+<div class="container">
+  <section class="card controls">
+    <h2 id="modeHeader">Mode Selection</h2>
+    <div class="toggle" role="group" aria-label="Mode">
+      <button type="button" id="modeH" class="primary" aria-pressed="true">Hydrogen-like (exact)</button>
+      <button type="button" id="modeS" aria-pressed="false">Multi-electron (approx.)</button>
+      <button type="button" id="modeHe" aria-pressed="false">He (2e) – variational</button>
+    </div>
+
+    <!-- H exact -->
+    <div id="panelH">
+      <div class="row">
+        <div><label for="Z" id="lblZ">Nuclear charge Z</label><input id="Z" type="number" min="1" max="92" value="1"></div>
+        <div><label for="n" id="lbln">Principal quantum number n</label><input id="n" type="number" min="1" max="10" value="1"></div>
+      </div>
+      <div class="row">
+        <div><label for="l" id="lbll">Angular momentum l (0=s,1=p,2=d,3=f)</label><input id="l" type="number" min="0" max="6" value="0"></div>
+        <div><label for="N" id="lblN">Samples (N)</label><input id="N" type="number" min="200" max="4000" value="800"></div>
+      </div>
+    </div>
+
+    <!-- Multi-electron approx (Slater + quantum defect) -->
+    <div id="panelS" style="display:none">
+      <div class="row">
+        <div>
+          <label for="element" id="lblElement">Element</label>
+          <select id="element"></select>
+        </div>
+        <div>
+          <label for="subshell" id="lblSubshell">Subshell (valence)</label>
+          <select id="subshell"></select>
+        </div>
+      </div>
+      <div class="row-3">
+        <div><label for="Zeff" id="lblZeff">Z<sub>eff</sub> (Slater estimate)</label><input id="Zeff" type="number" step="0.01" value="1.00"></div>
+        <div><label for="n_eff" id="lblNeff">n* (quantum defect: n* = n − δ)</label><input id="n_eff" type="number" step="0.01" value="1.00"></div>
+        <div><label for="N2" id="lblN2">Samples (N)</label><input id="N2" type="number" min="200" max="4000" value="800"></div>
+      </div>
+      <div class="grid2">
+        <div>
+          <button type="button" id="btnEstimateZeff">Estimate Z<sub>eff</sub> (Slater)</button>
+          <small id="slaterNote" class="note">Rough estimate for the selected element/subshell; you can tweak it manually.</small>
+        </div>
+        <div>
+          <label for="delta" id="lblDelta">Quantum defect δ (optional)</label>
+          <input id="delta" type="number" step="0.01" value="0.00">
+          <small id="deltaNote" class="note">n* = n − δ. In alkali atoms δ<sub>s</sub> is typically large (e.g., Na: ~1.37).</small>
+        </div>
+      </div>
+    </div>
+
+    <!-- Helium 2e variational total -->
+    <div id="panelHe" style="display:none">
+      <div class="kicker" id="heKicker">For He (two electrons): variational 1s×1s with ζ* total radial distribution.</div>
+      <div class="row-3">
+        <div>
+          <label for="Nhe" id="lblNhe">Samples (N)</label>
+          <input id="Nhe" type="number" min="200" max="4000" value="800">
+        </div>
+        <div>
+          <label for="heOverlay" id="lblHeOverlay">Comparison curves</label>
+          <select id="heOverlay">
+            <option value="all">He (ζ*), He (naive Z=2), H (reference)</option>
+            <option value="zeta">Only He (ζ*)</option>
+            <option value="zeta_naive">He (ζ*) + He (naive)</option>
+          </select>
+        </div>
+        <div>
+          <label for="unitR" id="lblUnitR">r unit</label>
+          <select id="unitR">
+            <option value="bohr">Bohr (a₀)</option>
+            <option value="ang">Ångström (Å)</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid2">
+        <div><span class="badge" id="heEnergyBadge">E₀(He, var.) ≈ —</span></div>
+        <div><span class="badge" id="normBadge">∫P(r)dr ≈ —</span></div>
+      </div>
+      <small class="note" id="heNote">Model: uncorrelated spin-singlet 1s×1s; P₂e(r,ζ)=2·P₁e(r,ζ). Variational optimum ζ*=1.6875.</small>
+    </div>
+
+    <hr />
+    <div class="legend">
+      <label><input type="checkbox" id="showP" checked /> <span id="lgP">P(r) = 4π r² |R|²</span></label>
+      <label><input type="checkbox" id="showR" checked /> <span id="lgR">|R(r)|</span></label>
+      <label><input type="checkbox" id="showRscaled" /> <span id="lgRs">|R(r)| (scaled)</span></label>
+    </div>
+
+    <div class="row">
+      <button type="button" id="btnPlot" class="primary">Update Plot</button>
+      <button type="button" id="btnShare">Share Settings (URL)</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <div id="title" class="footer-badges"><span class="badge">n=1, l=0, Z=1</span></div>
+    <div id="plot" style="height:520px"></div>
+    <div id="meta" style="color:var(--muted);font-size:13px"></div>
+
+    <div class="tabs">
+      <button type="button" id="tabPlot" class="active">Plot</button>
+      <button type="button" id="tabExplain">Explanation</button>
+    </div>
+    <div id="explain" style="display:none; margin-top:10px; font-size:14px; color:var(--muted)"></div>
+  </section>
+</div>
+
+<footer>
+  <div class="footer-badges">
+    <span class="badge" id="badgeVer">HydroGen+ v0.5 (Educational)</span>
+    <span class="badge" id="badgeUnit">a₀ = 1 unit</span>
+    <span class="badge">Plotly</span>
+  </div>
+</footer>
+
+<script>
+(function(){
+  // ===== helpers =====
+  var $ = function(q){ return document.querySelector(q); };
+  var $$ = function(q){ return Array.prototype.slice.call(document.querySelectorAll(q)); };
+  function ready(fn){ if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded',fn); } else { fn(); } }
+
+  // ===== i18n =====
+  var I18N = {
+    tr:{
+      hdrTitle:"Atomik Radyal Olasılık Görselleştirici",
+      hdrSubtitle:"Mod 1: Hidrojen-benzeri (tam). Mod 2: Çok elektronlu (Slater+δ, yaklaşık). Mod 3: He (2e) varyasyonel toplam dağılım.",
+      modeHeader:"Mod Seçimi",
+      btnPlot:"Çizimi Güncelle",
+      btnShare:"Ayarları Paylaş (URL)",
+      tabPlot:"Grafik", tabExplain:"Açıklama",
+      lgP:"P(r) = 4π r² |R|²", lgR:"|R(r)|", lgRs:"|R(r)| (ölçekli)", xTitle:"r", yTitle:"yoğunluk",
+      modeH:"Hidrojen-benzeri (tam)", modeS:"Çok Elektronlu (yaklaşık)", modeHe:"He (2e) – varyasyonel",
+      lblZ:"Çekirdek yükü Z", lbln:"Ana kuantum sayısı n", lbll:"Açısal momentum l (0=s,1=p,2=d,3=f)", lblN:"Örnek sayısı (N)",
+      lblElement:"Element", lblSubshell:"Alt kabuk (valans)", lblZeff:"Z\u2091\u2099 (Slater tahmin)", lblNeff:"n* (kuantum defekti: n* = n − δ)", lblN2:"Örnek sayısı (N)",
+      btnEstimateZeff:"Z\u2091\u2099 tahmin et (Slater)", slaterNote:"Seçilen element ve alt kabuk için kabaca bir tahmin üretir; isterseniz manuel ayarlayın.",
+      lblDelta:"Kuantum defekti δ (opsiyonel)", deltaNote:"n* = n − δ. Alkali atomlarda δ\u209B genelde büyüktür (ör. Na: ~1.37).",
+      heKicker:"He (iki elektron) için varyasyonel 1s×1s, ζ* ile toplam radyal dağılım.",
+      lblNhe:"Örnek sayısı (N)", lblHeOverlay:"Kıyas eğrileri", heOverlay_all:"He (ζ*), He (naif Z=2), H (referans)", heOverlay_zeta:"Sadece He (ζ*)", heOverlay_zeta_naive:"He (ζ*) + He (naif)",
+      lblUnitR:"r birimi", unit_bohr:"Bohr (a₀)", unit_ang:"Ångström (Å)",
+      metaH:function(r){ return "Aralık ~0 → "+r.toFixed(1)+" a₀ | Hidrojen-benzeri."; },
+      metaS:function(r){ return "Aralık ~0 → "+r.toFixed(1)+" a₀ | Slater + kuantum defekti ile hidrojenik form (yaklaşık)."; },
+      metaHe:function(r,u){ return "Aralık ~0 → "+r.toFixed(1)+" "+u+" | He(2e) varyasyonel toplam dağılım."; },
+      titleH:function(n,l,Z){ return "H-tipi: n="+n+", l="+l+", Z="+Z; },
+      titleS:function(Z,sym,ss,Zeff,nstar,delta){ return "Çok elektronlu ~ "+Z+" ("+sym+"), "+ss+", Z_eff≈"+Zeff.toFixed(2)+", n*="+nstar.toFixed(2)+" (δ="+delta.toFixed(2)+")"; },
+      titleHe:function(){ return "He (2e) – varyasyonel ζ*"; },
+      heEnergy:function(eha,eev){ return "E₀(He, varyasyonel) ≈ "+eha.toFixed(4)+" Ha ("+eev.toFixed(2)+" eV)"; },
+      normBadge:function(val){ return "∫P(r)dr ≈ "+val.toFixed(3)+" (He toplam için ≈2 beklenir)"; }
+    },
+    en:{
+      hdrTitle:"Atomic Radial Probability Visualizer",
+      hdrSubtitle:"Mode 1: Hydrogen-like (exact). Mode 2: Multi-electron (Slater+δ, approx.). Mode 3: He (2e) variational total distribution.",
+      modeHeader:"Mode Selection",
+      btnPlot:"Update Plot",
+      btnShare:"Share Settings (URL)",
+      tabPlot:"Plot", tabExplain:"Explanation",
+      lgP:"P(r) = 4π r² |R|²", lgR:"|R(r)|", lgRs:"|R(r)| (scaled)", xTitle:"r", yTitle:"density",
+      modeH:"Hydrogen-like (exact)", modeS:"Multi-electron (approx.)", modeHe:"He (2e) – variational",
+      lblZ:"Nuclear charge Z", lbln:"Principal quantum number n", lbll:"Angular momentum l (0=s,1=p,2=d,3=f)", lblN:"Samples (N)",
+      lblElement:"Element", lblSubshell:"Subshell (valence)", lblZeff:"Z\u2091\u2099 (Slater estimate)", lblNeff:"n* (quantum defect: n* = n − δ)", lblN2:"Samples (N)",
+      btnEstimateZeff:"Estimate Z\u2091\u2099 (Slater)", slaterNote:"Produces a rough estimate for the selected element/subshell; you can tweak manually.",
+      lblDelta:"Quantum defect δ (optional)", deltaNote:"n* = n − δ. In alkali atoms δ\u209B is typically large (e.g., Na: ~1.37).",
+      heKicker:"For He (two electrons): variational 1s×1s with ζ* total radial distribution.",
+      lblNhe:"Samples (N)", lblHeOverlay:"Comparison curves", heOverlay_all:"He (ζ*), He (naive Z=2), H (reference)", heOverlay_zeta:"Only He (ζ*)", heOverlay_zeta_naive:"He (ζ*) + He (naive)",
+      lblUnitR:"r unit", unit_bohr:"Bohr (a₀)", unit_ang:"Ångström (Å)",
+      metaH:function(r){ return "Range ~0 → "+r.toFixed(1)+" a₀ | Hydrogen-like."; },
+      metaS:function(r){ return "Range ~0 → "+r.toFixed(1)+" a₀ | Hydrogenic with Slater + quantum defect (approx.)."; },
+      metaHe:function(r,u){ return "Range ~0 → "+r.toFixed(1)+" "+u+" | He(2e) variational total distribution."; },
+      titleH:function(n,l,Z){ return "Hydrogen-like: n="+n+", l="+l+", Z="+Z; },
+      titleS:function(Z,sym,ss,Zeff,nstar,delta){ return "Multi-e− ~ "+Z+" ("+sym+"), "+ss+", Z_eff≈"+Zeff.toFixed(2)+", n*="+nstar.toFixed(2)+" (δ="+delta.toFixed(2)+")"; },
+      titleHe:function(){ return "He (2e) – variational ζ*"; },
+      heEnergy:function(eha,eev){ return "E₀(He, variational) ≈ "+eha.toFixed(4)+" Ha ("+eev.toFixed(2)+" eV)"; },
+      normBadge:function(val){ return "∫P(r)dr ≈ "+val.toFixed(3)+" (expect ≈2 for total He)"; }
+    }
+  };
+
+  // default language (force EN on load)
+  var LANG = 'en'; document.documentElement.lang = 'en';
+
+  // ===== periodic list (to Kr) =====
+  var elements = [
+    {Z:1,sym:"H",  tr:"Hidrojen",   en:"Hydrogen",   valence:["1s"]},
+    {Z:2,sym:"He", tr:"Helyum",     en:"Helium",     valence:["1s"]},
+    {Z:3,sym:"Li", tr:"Lityum",     en:"Lithium",    valence:["2s","2p"]},
+    {Z:4,sym:"Be", tr:"Berilyum",   en:"Beryllium",  valence:["2s","2p"]},
+    {Z:5,sym:"B",  tr:"Bor",        en:"Boron",      valence:["2s","2p"]},
+    {Z:6,sym:"C",  tr:"Karbon",     en:"Carbon",     valence:["2s","2p"]},
+    {Z:7,sym:"N",  tr:"Azot",       en:"Nitrogen",   valence:["2s","2p"]},
+    {Z:8,sym:"O",  tr:"Oksijen",    en:"Oxygen",     valence:["2s","2p"]},
+    {Z:9,sym:"F",  tr:"Flor",       en:"Fluorine",   valence:["2s","2p"]},
+    {Z:10,sym:"Ne",tr:"Neon",       en:"Neon",       valence:["2s","2p"]},
+    {Z:11,sym:"Na",tr:"Sodyum",     en:"Sodium",     valence:["3s","3p","3d"]},
+    {Z:12,sym:"Mg",tr:"Magnezyum",  en:"Magnesium",  valence:["3s","3p","3d"]},
+    {Z:13,sym:"Al",tr:"Alüminyum",  en:"Aluminium",  valence:["3s","3p","3d"]},
+    {Z:14,sym:"Si",tr:"Silisyum",   en:"Silicon",    valence:["3s","3p","3d"]},
+    {Z:15,sym:"P", tr:"Fosfor",     en:"Phosphorus", valence:["3s","3p","3d"]},
+    {Z:16,sym:"S", tr:"Kükürt",     en:"Sulfur",     valence:["3s","3p","3d"]},
+    {Z:17,sym:"Cl",tr:"Klor",       en:"Chlorine",   valence:["3s","3p","3d"]},
+    {Z:18,sym:"Ar",tr:"Argon",      en:"Argon",      valence:["3s","3p","3d"]},
+    {Z:19,sym:"K", tr:"Potasyum",   en:"Potassium",  valence:["4s","4p","3d"]},
+    {Z:20,sym:"Ca",tr:"Kalsiyum",   en:"Calcium",    valence:["4s","4p","3d"]},
+    {Z:21,sym:"Sc",tr:"Skandiyum",  en:"Scandium",   valence:["3d","4s","4p"]},
+    {Z:22,sym:"Ti",tr:"Titanyum",   en:"Titanium",   valence:["3d","4s","4p"]},
+    {Z:23,sym:"V", tr:"Vanadyum",   en:"Vanadium",   valence:["3d","4s","4p"]},
+    {Z:24,sym:"Cr",tr:"Krom",       en:"Chromium",   valence:["3d","4s","4p"]},
+    {Z:25,sym:"Mn",tr:"Manganez",   en:"Manganese",  valence:["3d","4s","4p"]},
+    {Z:26,sym:"Fe",tr:"Demir",      en:"Iron",       valence:["3d","4s","4p"]},
+    {Z:27,sym:"Co",tr:"Kobalt",     en:"Cobalt",     valence:["3d","4s","4p"]},
+    {Z:28,sym:"Ni",tr:"Nikel",      en:"Nickel",     valence:["3d","4s","4p"]},
+    {Z:29,sym:"Cu",tr:"Bakır",      en:"Copper",     valence:["3d","4s","4p"]},
+    {Z:30,sym:"Zn",tr:"Çinko",      en:"Zinc",       valence:["3d","4s","4p"]},
+    {Z:31,sym:"Ga",tr:"Galyum",     en:"Gallium",    valence:["4s","4p","3d"]},
+    {Z:32,sym:"Ge",tr:"Germanyum",  en:"Germanium",  valence:["4s","4p","3d"]},
+    {Z:33,sym:"As",tr:"Arsenik",    en:"Arsenic",    valence:["4s","4p","3d"]},
+    {Z:34,sym:"Se",tr:"Selenyum",   en:"Selenium",   valence:["4s","4p","3d"]},
+    {Z:35,sym:"Br",tr:"Brom",       en:"Bromine",    valence:["4s","4p","3d"]},
+    {Z:36,sym:"Kr",tr:"Kripton",    en:"Krypton",    valence:["4s","4p","3d"]}
+  ];
+
+  // ===== Slater config & utilities =====
+  var configOrder=["1s","2s","2p","3s","3p","4s","3d","4p"]; var maxElectrons={s:2,p:6,d:10,f:14};
+  function buildConfig(Z){ var conf={}; var left=Z; for(var i=0;i<configOrder.length;i++){ var orb=configOrder[i]; var l=orb.slice(-1); var cap=maxElectrons[l]; var fill=Math.min(cap,left); conf[orb]=fill; left-=fill; if(left<=0) break; } return conf; }
+  function slaterZeff(Z,subshell){
+    var conf=buildConfig(Z); var n=parseInt(subshell[0],10); var lch=subshell[1];
+    var sameGroup=0,nminus1=0,lower=0; function parseOrb(orb){ return {n:parseInt(orb[0],10), l:orb[1]}; }
+    var entries=Object.keys(conf); for(var k=0;k<entries.length;k++){
+      var orb=entries[k]; var occ=conf[orb]; var parsed=parseOrb(orb); var nn=parsed.n, ll=parsed.l;
+      var sameBlock = (lch==='s'||lch==='p') ? (ll==='s'||ll==='p') : (ll===lch);
+      if(nn===n && sameBlock){ sameGroup+=occ; }
+      else if(nn===n-1){ nminus1+=occ; }
+      else if(nn<=n-2){ lower+=occ; }
+    }
+    if(sameGroup>0) sameGroup-=1; var S=0;
+    if(lch==='s'||lch==='p'){ S = (n===1) ? sameGroup*0.30 : sameGroup*0.35 + nminus1*0.85 + lower*1.00; }
+    else { S = sameGroup*0.35 + (nminus1+lower)*1.00; }
+    return {Zeff: Z - S, S: S, sameGroup: sameGroup, nminus1: nminus1, lower: lower, conf: conf};
+  }
+
+  // ===== hydrogenic core =====
+  function factorial(k){ if(k<0) return NaN; var r=1; for(var i=2;i<=k;i++) r*=i; return r; }
+  function assocLaguerre(p,q,x){ var sum=0; for(var m=0;m<=p;m++){ var c=Math.pow(-1,m)*factorial(p+q)/(factorial(p-m)*factorial(q+m)*factorial(m)); sum+=c*Math.pow(x,m); } return sum; }
+  function radialR(n,l,Zeff,r){ var a0=1.0; var rho=2.0*Zeff*r/(n*a0); var pref=Math.sqrt(Math.pow(2*Zeff/(n*a0),3)*factorial(n-l-1)/(2*n*factorial(n+l))); var lag=assocLaguerre(n-l-1,2*l+1,rho); return pref*Math.exp(-rho/2.0)*Math.pow(rho,l)*lag; }
+
+  function currentShow(){ return { P:$('#showP').checked, R:$('#showR').checked, Rs:$('#showRscaled').checked }; }
+
+  function makeData_H(Z,n,l,N){ if(l>n-1) throw new Error('l<=n-1'); var rmax=Math.max(10,6*n*n/Z); var xs=[],Pr=[],Rabs=[],Rsc=[]; var maxR=0; for(var i=0;i<N;i++){ var r=rmax*i/(N-1); var R=radialR(n,l,Z,r); var p=4*Math.PI*r*r*R*R; xs.push(r); Pr.push(p); var aR=Math.abs(R); Rabs.push(aR); if(aR>maxR) maxR=aR; } var maxPr=0; for(var t=0;t<Pr.length;t++){ if(Pr[t]>maxPr) maxPr=Pr[t]; } var scale=maxR>0?maxPr/maxR:1; for(var j=0;j<Rabs.length;j++){ Rsc.push(Rabs[j]*scale); } var traces=[]; if(currentShow().P) traces.push({x:xs,y:Pr,name:I18N[LANG].lgP,mode:'lines'}); if(currentShow().R) traces.push({x:xs,y:Rabs,name:I18N[LANG].lgR,mode:'lines'}); if(currentShow().Rs) traces.push({x:xs,y:Rsc,name:I18N[LANG].lgRs,mode:'lines',line:{dash:'dot'}}); return {traces:traces,rmax:rmax}; }
+
+  function makeData_Slater(Zeff,n_eff,l,N){ var nstar=n_eff; if(l>nstar-1) throw new Error('l <= n* - 1'); var rmax=Math.max(10,6*nstar*nstar/Zeff); var xs=[],Pr=[],Rabs=[],Rsc=[]; var maxR=0; for(var i=0;i<N;i++){ var r=rmax*i/(N-1); var R=radialR(nstar,l,Zeff,r); var p=4*Math.PI*r*r*R*R; xs.push(r); Pr.push(p); var aR=Math.abs(R); Rabs.push(aR); if(aR>maxR) maxR=aR; } var maxPr=0; for(var t=0;t<Pr.length;t++){ if(Pr[t]>maxPr) maxPr=Pr[t]; } var scale=maxR>0?maxPr/maxR:1; for(var j=0;j<Rabs.length;j++){ Rsc.push(Rabs[j]*scale); } var traces=[]; if(currentShow().P) traces.push({x:xs,y:Pr,name:I18N[LANG].lgP,mode:'lines'}); if(currentShow().R) traces.push({x:xs,y:Rabs,name:I18N[LANG].lgR,mode:'lines'}); if(currentShow().Rs) traces.push({x:xs,y:Rsc,name:I18N[LANG].lgRs,mode:'lines',line:{dash:'dot'}}); return {traces:traces,rmax:rmax}; }
+
+  // ===== He variational (2e total) =====
+  var HARTREE_TO_EV = 27.211386245988;
+  function heZetaStar(Z){ if(typeof Z==='undefined') Z=2; return Z - 5/16; }
+  function heEnergy(zeta,Z){ if(typeof Z==='undefined') Z=2; return zeta*zeta - 2*Z*zeta + (5/8)*zeta; }
+  function P1e_1s(r,zeta){ return 4*Math.pow(zeta,3)*r*r*Math.exp(-2*zeta*r); }
+  function P2e_total(r,zeta){ return 2*P1e_1s(r,zeta); }
+  function trapz(f,rmin,rmax,n){ var h=(rmax-rmin)/n; var s=0; for(var i=0;i<=n;i++){ var x=rmin+i*h; var w=(i===0||i===n)?1:2; s+=w*f(x); } return s*h/2; }
+  function makeData_He2e(N,unit){
+    var z=heZetaStar(2); var Eha=heEnergy(z,2); var Eev=Eha*HARTREE_TO_EV; $('#heEnergyBadge').textContent=I18N[LANG].heEnergy(Eha,Eev);
+    var rmaxAU=Math.max(10,6/z); var xsAU=[],Pzeta=[],Pnaive=[],Phref=[];
+    for(var i=0;i<N;i++){ var r=rmaxAU*i/(N-1); xsAU.push(r); Pzeta.push(P2e_total(r,z)); Pnaive.push(P2e_total(r,2)); Phref.push(P1e_1s(r,1)); }
+    var integral=trapz(function(x){ return P2e_total(x,z); },0,rmaxAU,2000); $('#normBadge').textContent=I18N[LANG].normBadge(integral);
+    var AU_TO_ANG=0.529177; var scale=(unit==='ang'?AU_TO_ANG:1); var xs=xsAU.map(function(x){ return x*scale; }); var unitLbl=(unit==='ang'?'Å':'a₀');
+    var overlay=$('#heOverlay').value; var traces=[];
+    traces.push({x:xs,y:Pzeta,name:'He (2e, ζ*)',mode:'lines'});
+    if(overlay==='all'||overlay==='zeta_naive') traces.push({x:xs,y:Pnaive,name:'He (2e, naive Z=2)',mode:'lines',line:{dash:'dot'}});
+    if(overlay==='all') traces.push({x:xs,y:Phref,name:'H (1e, ref)',mode:'lines',line:{dash:'dash'}});
+    return {traces:traces,rmax:rmaxAU*scale,unit:unitLbl};
+  }
+
+  function axisLayout(){ return { paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)', xaxis:{title:I18N[LANG].xTitle,gridcolor:'#233047',zerolinecolor:'#233047',linecolor:'#233047'}, yaxis:{title:I18N[LANG].yTitle,gridcolor:'#233047',zerolinecolor:'#233047',linecolor:'#233047'}, legend:{orientation:'h'}, margin:{l:50,r:20,t:20,b:50} }; }
+
+  function updateExplain(){
+    var tr='<b>Nasıl çalışır?</b><br>• Mod 1: Hidrojenik kapalı form R<sub>nl</sub>(r) ve P(r)=4πr²|R|² çizilir.<br>• Mod 2: Çok elektronlu atomlar için Slater Z<sub>eff</sub> ve kuantum defektiyle hidrojenik forma yaklaşılır (yaklaşık).<br>• Mod 3: He (2e) için varyasyonel 1s×1s (bağıntısız spin-singlet) denemesi kullanılır. E(ζ)=ζ²−2Zζ+5ζ/8 minimize → ζ*≈1.6875. Toplam dağılım P<sub>2e</sub>(r)=8ζ³ r² e<sup>−2ζr</sup>. ∫P≈2. Hesaplar a.u.; x-ekseni Å gösterilebilir.';
+    var en='<b>How does it work?</b><br>• Mode 1: Exact hydrogenic R<sub>nl</sub>(r) with P(r)=4πr²|R|².<br>• Mode 2: For multi-electron atoms, hydrogenic with Slater Z<sub>eff</sub> and quantum defect (approx.).<br>• Mode 3: For He (2e), variational 1s×1s (uncorrelated spin-singlet). Minimizing E(ζ)=ζ²−2Zζ+5ζ/8 gives ζ*≈1.6875. Total P<sub>2e</sub>(r)=8ζ³ r² e<sup>−2ζr</sup>. ∫P≈2. Computations in a.u.; x-axis can be Å.';
+    $('#explain').innerHTML = (LANG==='tr'?tr:en);
+  }
+
+  function setMode(which){
+    var H=(which==='H'), S=(which==='S'), He=(which==='He');
+    $('#panelH').style.display = H?'block':'none';
+    $('#panelS').style.display = S?'block':'none';
+    $('#panelHe').style.display= He?'block':'none';
+    // button states
+    $('#modeH').classList.toggle('primary',H); $('#modeH').setAttribute('aria-pressed', H);
+    $('#modeS').classList.toggle('primary',S); $('#modeS').setAttribute('aria-pressed', S);
+    $('#modeHe').classList.toggle('primary',He); $('#modeHe').setAttribute('aria-pressed', He);
+    draw();
+  }
+
+  function populateElements(){
+    var sel = $('#element'); sel.innerHTML='';
+    elements.forEach(function(e){ var opt=document.createElement('option'); opt.value=e.Z; opt.textContent=e.Z+" - "+e.sym+" ("+(LANG==='tr'?e.tr:e.en)+")"; sel.appendChild(opt); });
+    sel.value='11'; // Na default
+    updateSubshells();
+  }
+  function refreshElementNames(){
+    var sel = $('#element'); if(!sel) return;
+    Array.prototype.forEach.call(sel.options,function(o){ var Z=parseInt(o.value,10); var e=elements.find(function(x){return x.Z===Z;}); o.textContent=e.Z+" - "+e.sym+" ("+(LANG==='tr'?e.tr:e.en)+")"; });
+  }
+  function updateSubshells(){
+    var Z=parseInt($('#element').value,10); var e=elements.find(function(x){return x.Z===Z;});
+    var sel=$('#subshell'); sel.innerHTML='';
+    e.valence.forEach(function(s){ var opt=document.createElement('option'); opt.value=s; opt.textContent=s; sel.appendChild(opt); });
+    // tabs logic
+    function setTab(which){
+      var isPlot = (which === 'plot');
+      var plotBtn = document.getElementById('tabPlot');
+      var expBtn  = document.getElementById('tabExplain');
+      var plotEl  = document.getElementById('plot');
+      var expEl   = document.getElementById('explain');
+      if(plotBtn && expBtn){
+        plotBtn.classList.toggle('active', isPlot);
+        expBtn.classList.toggle('active', !isPlot);
+      }
+      if(plotEl && expEl){
+        plotEl.style.display = isPlot ? 'block' : 'none';
+        expEl.style.display  = isPlot ? 'none'  : 'block';
+      }
+    }
+
+    // tab events
+    document.getElementById('tabPlot').addEventListener('click', function(){ setTab('plot'); });
+    document.getElementById('tabExplain').addEventListener('click', function(){ setTab('explain'); });
+
+    // defaults
+    var ss=sel.value; if(Z===11 && ss==='3s'){ $('#n_eff').value='3.00'; $('#delta').value='1.37'; } else { $('#n_eff').value = ss.charAt(0); $('#delta').value='0.00'; }
+  }
+
+  function draw(){
+    try{
+      var layout=axisLayout();
+      var H = $('#panelH').style.display==='block';
+      var S = $('#panelS').style.display==='block';
+      if(H){
+        var Z=parseInt($('#Z').value||'1',10), n=parseInt($('#n').value||'1',10), l=parseInt($('#l').value||'0',10), N=parseInt($('#N').value||'800',10);
+        var pack=makeData_H(Z,n,l,N); var traces=pack.traces, rmax=pack.rmax;
+        $('#title').innerHTML='<span class="badge">'+I18N[LANG].titleH(n,l,Z)+'</span>';
+        $('#meta').textContent=I18N[LANG].metaH(rmax);
+        Plotly.react('plot',traces,layout);
+      } else if(S){
+        var ZZ=parseInt($('#element').value,10), ss=$('#subshell').value, N2=parseInt($('#N2').value||'800',10);
+        var lmap={s:0,p:1,d:2,f:3}; var l=lmap[ss[1]]||0;
+        var Ze=parseFloat($('#Zeff').value); var nstar=parseFloat($('#n_eff').value); var delta=parseFloat($('#delta').value)||0;
+        var pack2=makeData_Slater(Ze,nstar,l,N2); var traces2=pack2.traces, rmax2=pack2.rmax; var sym=elements.find(function(e){return e.Z===ZZ;}).sym;
+        $('#title').innerHTML='<span class="badge">'+I18N[LANG].titleS(ZZ,sym,ss,Ze,nstar,delta)+'</span>';
+        $('#meta').textContent=I18N[LANG].metaS(rmax2);
+        Plotly.react('plot',traces2,layout);
+      } else { // He
+        var Nhe=parseInt($('#Nhe').value||'800',10); var unit=$('#unitR').value;
+        var pack3=makeData_He2e(Nhe,unit); var traces3=pack3.traces, rmax3=pack3.rmax, unitLbl=pack3.unit;
+        $('#title').innerHTML='<span class="badge">'+I18N[LANG].titleHe()+'</span>';
+        $('#meta').textContent=I18N[LANG].metaHe(rmax3,unitLbl);
+        Plotly.react('plot',traces3,layout);
+      }
+    }catch(e){ console.error(e); }
+  }
+
+  function shareState(){
+    var mode = $('#panelH').style.display==='block'?'H':($('#panelS').style.display==='block'?'S':'He');
+    var state={ lang:LANG, mode:mode,
+      Z:$('#Z').value, n:$('#n').value, l:$('#l').value, N:$('#N').value,
+      e:$('#element').value, ss:$('#subshell').value, Zeff:$('#Zeff').value, nstar:$('#n_eff').value, delta:$('#delta').value, N2:$('#N2').value,
+      Nhe:$('#Nhe').value, overlay:$('#heOverlay').value, unit:$('#unitR').value,
+      showP:$('#showP').checked, showR:$('#showR').checked, showRs:$('#showRscaled').checked };
+    location.hash=encodeURIComponent(JSON.stringify(state));
+    alert(LANG==='tr'?"URL hazır – kopyalayıp paylaşabilirsiniz.":"URL ready — you can copy and share it.");
+  }
+
+  function restoreFromHash(){
+    if(location.hash.length>1){ try{ var s=JSON.parse(decodeURIComponent(location.hash.slice(1)));
+      LANG=s.lang||LANG; document.documentElement.lang=(LANG==='tr'?'tr':'en'); $('#btnTR').classList.toggle('active',LANG==='tr'); $('#btnEN').classList.toggle('active',LANG!=='tr');
+      setMode(s.mode||'H'); if(s.mode==='H'){ $('#Z').value=s.Z; $('#n').value=s.n; $('#l').value=s.l; $('#N').value=s.N; }
+      else if(s.mode==='S'){ $('#element').value=s.e; updateSubshells(); $('#subshell').value=s.ss; $('#Zeff').value=s.Zeff; $('#n_eff').value=s.nstar; $('#delta').value=s.delta; $('#N2').value=s.N2; }
+      else { $('#Nhe').value=s.Nhe||800; $('#heOverlay').value=s.overlay||'all'; $('#unitR').value=s.unit||'bohr'; }
+      $('#showP').checked=!!s.showP; $('#showR').checked=!!s.showR; $('#showRscaled').checked=!!s.showRs;
+    }catch(e){ console.warn('state parse',e); }}
+    draw();
+  }
+
+  ready(function(){
+    // guard: Plotly
+    if(typeof Plotly==='undefined'){
+      var warn=document.createElement('div'); warn.style.color='#ffb4b4'; warn.style.padding='8px'; warn.textContent='Plotly failed to load (CDN).'; $('#plot').appendChild(warn);
+    }
+    // populate
+    populateElements();
+
+    function applyLabels(){
+      // header
+      $('#hdrTitle').textContent=I18N[LANG].hdrTitle;
+      $('#hdrSubtitle').textContent=I18N[LANG].hdrSubtitle;
+      // mode section
+      $('#modeHeader').textContent=I18N[LANG].modeHeader;
+      $('#modeH').textContent=I18N[LANG].modeH;
+      $('#modeS').textContent=I18N[LANG].modeS;
+      $('#modeHe').textContent=I18N[LANG].modeHe;
+      // H panel
+      $('#lblZ').textContent=I18N[LANG].lblZ;
+      $('#lbln').textContent=I18N[LANG].lbln;
+      $('#lbll').textContent=I18N[LANG].lbll;
+      $('#lblN').textContent=I18N[LANG].lblN;
+      // S panel
+      $('#lblElement').textContent=I18N[LANG].lblElement;
+      $('#lblSubshell').textContent=I18N[LANG].lblSubshell;
+      $('#lblZeff').textContent=I18N[LANG].lblZeff;
+      $('#lblNeff').textContent=I18N[LANG].lblNeff;
+      $('#lblN2').textContent=I18N[LANG].lblN2;
+      $('#btnEstimateZeff').innerHTML=I18N[LANG].btnEstimateZeff;
+      $('#slaterNote').textContent=I18N[LANG].slaterNote;
+      $('#lblDelta').textContent=I18N[LANG].lblDelta;
+      $('#deltaNote').innerHTML=I18N[LANG].deltaNote;
+      // He panel
+      $('#heKicker').textContent=I18N[LANG].heKicker;
+      $('#lblNhe').textContent=I18N[LANG].lblNhe;
+      $('#lblHeOverlay').textContent=I18N[LANG].lblHeOverlay;
+      $('#heOverlay').innerHTML = '<option value="all">'+I18N[LANG].heOverlay_all+'</option><option value="zeta">'+I18N[LANG].heOverlay_zeta+'</option><option value="zeta_naive">'+I18N[LANG].heOverlay_zeta_naive+'</option>';
+      $('#lblUnitR').textContent=I18N[LANG].lblUnitR;
+      $('#unitR').innerHTML = '<option value="bohr">'+I18N[LANG].unit_bohr+'</option><option value="ang">'+I18N[LANG].unit_ang+'</option>';
+      // legend
+      $('#lgP').textContent=I18N[LANG].lgP;
+      $('#lgR').textContent=I18N[LANG].lgR;
+      $('#lgRs').textContent=I18N[LANG].lgRs;
+      // buttons
+      $('#btnPlot').textContent=I18N[LANG].btnPlot;
+      $('#btnShare').textContent=I18N[LANG].btnShare;
+      // tabs
+      $('#tabPlot').textContent=I18N[LANG].tabPlot;
+      $('#tabExplain').textContent=I18N[LANG].tabExplain;
+      // axis titles updated via draw() using I18N
+      refreshElementNames();
+    }
+
+    // events
+    $('#btnPlot').addEventListener('click',draw);
+    $('#btnShare').addEventListener('click',shareState);
+    $('#modeH').addEventListener('click',function(){ setMode('H'); });
+    $('#modeS').addEventListener('click',function(){ setMode('S'); });
+    $('#modeHe').addEventListener('click',function(){ setMode('He'); });
+
+    $('#element').addEventListener('change',function(){ updateSubshells(); draw(); });
+    $('#subshell').addEventListener('change',draw);
+    $('#btnEstimateZeff').addEventListener('click',function(){ var Z=parseInt($('#element').value,10); var ss=$('#subshell').value; var est=slaterZeff(Z,ss); $('#Zeff').value=est.Zeff.toFixed(2); var n=parseInt(ss[0],10), d=parseFloat($('#delta').value)||0; $('#n_eff').value=(n-d).toFixed(2); $('#meta').textContent='Slater: S='+est.S.toFixed(2)+' (same:'+est.sameGroup+', n-1:'+est.nminus1+', lower:'+est.lower+').'; draw(); });
+    $('#heOverlay').addEventListener('change',draw);
+    $('#unitR').addEventListener('change',draw);
+    $('#showP').addEventListener('change',draw);
+    $('#showR').addEventListener('change',draw);
+    $('#showRscaled').addEventListener('change',draw);
+
+    // language switchers
+    $('#btnTR').addEventListener('click',function(){ LANG='tr'; document.documentElement.lang='tr'; $('#btnTR').classList.add('active'); $('#btnEN').classList.remove('active'); applyLabels(); updateExplain(); draw(); });
+    $('#btnEN').addEventListener('click',function(){ LANG='en'; document.documentElement.lang='en'; $('#btnEN').classList.add('active'); $('#btnTR').classList.remove('active'); applyLabels(); updateExplain(); draw(); });
+
+    // defaults
+    LANG='en'; document.documentElement.lang='en'; $('#btnEN').classList.add('active'); $('#btnTR').classList.remove('active');
+    applyLabels();
+    setMode('H');
+    updateExplain();
+    restoreFromHash();
+    setTab('plot');
+
+    // ===== minimal self-tests (do not change) =====
+    function selfTests(){
+      var results=[];
+      try{ var sTR=I18N['tr'].metaH(10); if(typeof sTR!=='string'||!sTR.length) throw new Error('metaH[tr]'); results.push('metaH[tr] ok'); }catch(e){ console.error(e); results.push('metaH[tr] FAIL'); }
+      try{ var sEN=I18N['en'].metaH(10); if(typeof sEN!=='string'||!sEN.length) throw new Error('metaH[en]'); results.push('metaH[en] ok'); }catch(e){ console.error(e); results.push('metaH[en] FAIL'); }
+      try{ var I = (function(){
+        var z=2-5/16; // 1.6875
+        function P1(r){ return 8*Math.pow(z,3)*r*r*Math.exp(-2*z*r);} // total 2e
+        var rmax=10; var n=4000; var h=rmax/n; var s=0; for(var i=0;i<=n;i++){ var r=i*h; var w=(i===0||i===n)?1:2; s+=w*P1(r); } return s*h/2; })();
+        if(!(I>1.7 && I<2.3)) throw new Error('∫P2e ≈ 2 not satisfied: '+I.toFixed(3)); results.push('He integral≈2 ok');
+      }catch(e){ console.error(e); results.push('He integral FAIL'); }
+      // extra tests
+      try{ var est=slaterZeff(11,'3s'); if(!(est.Zeff>0 && est.Zeff<11)) throw new Error('Zeff range'); results.push('Slater Zeff ok'); }catch(e){ console.error(e); results.push('Slater Zeff FAIL'); }
+      try{ var pack=makeData_H(1,1,0,50); if(!pack.traces.length) throw new Error('H traces'); results.push('H traces ok'); }catch(e){ console.error(e); results.push('H traces FAIL'); }
+      console.log('Self-tests:', results);
+      var meta=document.querySelector('#meta'); if(meta){ meta.textContent = (meta.textContent?meta.textContent+' | ':'') + 'Self-tests: '+results.join(', '); }
+    }
+    selfTests();
+  });
+})();
+</script>
+</body>
+</html>
